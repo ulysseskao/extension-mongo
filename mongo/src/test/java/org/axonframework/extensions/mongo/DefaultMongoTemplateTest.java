@@ -16,9 +16,9 @@
 
 package org.axonframework.extensions.mongo;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.reactivestreams.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoCollection;
+import com.mongodb.reactivestreams.client.MongoDatabase;
 import org.bson.Document;
 import org.junit.jupiter.api.*;
 

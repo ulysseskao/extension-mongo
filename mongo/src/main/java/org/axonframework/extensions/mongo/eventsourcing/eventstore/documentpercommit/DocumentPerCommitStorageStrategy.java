@@ -17,7 +17,7 @@
 package org.axonframework.extensions.mongo.eventsourcing.eventstore.documentpercommit;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.MongoCollection;
+import com.mongodb.reactivestreams.client.MongoCollection;
 import com.mongodb.client.model.IndexOptions;
 import org.axonframework.eventhandling.DomainEventData;
 import org.axonframework.eventhandling.DomainEventMessage;

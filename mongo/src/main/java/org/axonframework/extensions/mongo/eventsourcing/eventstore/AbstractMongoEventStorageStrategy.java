@@ -17,12 +17,11 @@
 package org.axonframework.extensions.mongo.eventsourcing.eventstore;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.FindOneAndReplaceOptions;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
+import com.mongodb.reactivestreams.client.FindPublisher;
+import com.mongodb.reactivestreams.client.MongoCollection;
 import org.axonframework.common.Assert;
 import org.axonframework.eventhandling.DomainEventData;
 import org.axonframework.eventhandling.DomainEventMessage;
@@ -35,6 +34,8 @@ import org.axonframework.serialization.Serializer;
 import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.Document;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -141,14 +142,15 @@ public abstract class AbstractMongoEventStorageStrategy implements StorageStrate
     public List<? extends DomainEventData<?>> findDomainEvents(MongoCollection<Document> collection,
                                                                String aggregateIdentifier, long firstSequenceNumber,
                                                                int batchSize) {
-        FindIterable<Document> cursor = collection
+        Flux<Document> cursor = Flux.from(collection
                 .find(and(eq(eventConfiguration.aggregateIdentifierProperty(), aggregateIdentifier),
                           gte(eventConfiguration.sequenceNumberProperty(), firstSequenceNumber)))
-                .sort(new BasicDBObject(eventConfiguration().sequenceNumberProperty(), ORDER_ASC));
-        cursor = cursor.batchSize(batchSize);
-        return stream(cursor.spliterator(), false).flatMap(this::extractEvents)
-                                                  .filter(event -> event.getSequenceNumber() >= firstSequenceNumber)
-                                                  .collect(Collectors.toList());
+                .sort(new BasicDBObject(eventConfiguration().sequenceNumberProperty(), ORDER_ASC))
+                .batchSize(batchSize));
+
+        return cursor.toStream().flatMap(this::extractEvents)
+                .filter(event -> event.getSequenceNumber() >= firstSequenceNumber)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -162,27 +164,28 @@ public abstract class AbstractMongoEventStorageStrategy implements StorageStrate
     @Override
     public List<? extends TrackedEventData<?>> findTrackedEvents(MongoCollection<Document> eventCollection,
                                                                  TrackingToken lastToken, int batchSize) {
-        FindIterable<Document> cursor;
+        FindPublisher<Document> publisher;
         if (lastToken == null) {
-            cursor = eventCollection.find();
+            publisher = eventCollection.find();
         } else {
             Assert.isTrue(lastToken instanceof MongoTrackingToken,
                           () -> String.format("Token %s is of the wrong type", lastToken));
             //noinspection ConstantConditions
             MongoTrackingToken trackingToken = (MongoTrackingToken) lastToken;
-            cursor = eventCollection.find(and(gte(eventConfiguration.timestampProperty(),
+            publisher = eventCollection.find(and(gte(eventConfiguration.timestampProperty(),
                                                   formatInstant(trackingToken.getTimestamp().minus(lookBackTime))),
                                               nin(eventConfiguration.eventIdentifierProperty(),
                                                   trackingToken.getKnownEventIds())));
         }
-        cursor = cursor.sort(new BasicDBObject(eventConfiguration().timestampProperty(), ORDER_ASC)
+        publisher = publisher.sort(new BasicDBObject(eventConfiguration().timestampProperty(), ORDER_ASC)
                                      .append(eventConfiguration().sequenceNumberProperty(), ORDER_ASC));
-        cursor = cursor.batchSize(batchSize);
+        publisher = publisher.batchSize(batchSize);
+
         //noinspection ConstantConditions
         AtomicReference<MongoTrackingToken> previousToken = new AtomicReference<>((MongoTrackingToken) lastToken);
+        Flux<Document> cursor = Flux.from(publisher);
         List<TrackedEventData<?>> results = new ArrayList<>();
-        for (MongoCursor<Document> iterator = cursor.iterator(); results.size() < batchSize && iterator.hasNext(); ) {
-            Document document = iterator.next();
+        cursor.toStream().forEach(document -> {
             extractEvents(document)
                     .filter(ed -> previousToken.get() == null
                             || !previousToken.get().getKnownEventIds().contains(ed.getEventIdentifier()))
@@ -191,34 +194,35 @@ public abstract class AbstractMongoEventStorageStrategy implements StorageStrate
                                     ? MongoTrackingToken.of(event.getTimestamp(), event.getEventIdentifier())
                                     : token.advanceTo(event.getTimestamp(), event.getEventIdentifier(), lookBackTime))))
                     .forEach(results::add);
-        }
+
+        });
         return results;
     }
 
     @Override
     public Stream<? extends DomainEventData<?>> findSnapshots(MongoCollection<Document> snapshotCollection,
                                                               String aggregateIdentifier) {
-        FindIterable<Document> cursor =
+        Flux<Document> cursor = Flux.from(
                 snapshotCollection.find(eq(eventConfiguration.aggregateIdentifierProperty(), aggregateIdentifier))
-                                  .sort(orderBy(descending(eventConfiguration.sequenceNumberProperty())));
-        return stream(cursor.spliterator(), false).map(this::extractSnapshot);
+                                  .sort(orderBy(descending(eventConfiguration.sequenceNumberProperty()))));
+        return cursor.toStream().map(this::extractSnapshot);
     }
 
     @Override
     public Optional<Long> lastSequenceNumberFor(MongoCollection<Document> eventsCollection,
                                                 String aggregateIdentifier) {
-        Document lastDocument =
+        Document lastDocument = Mono.from(
                 eventsCollection.find(eq(eventConfiguration.aggregateIdentifierProperty(), aggregateIdentifier))
                                 .sort(descending(eventConfiguration.sequenceNumberProperty()))
-                                .first();
+                                .first()).block();
         return Optional.ofNullable(lastDocument).map(this::extractHighestSequenceNumber);
     }
 
     @Override
     public TrackingToken createTailToken(MongoCollection<Document> eventsCollection) {
-        Document first = eventsCollection.find()
+        Document first = Mono.from(eventsCollection.find()
                                          .sort(Sorts.ascending(eventConfiguration.timestampProperty()))
-                                         .first();
+                                         .first()).block();
         return Optional.ofNullable(first)
                        .map(d -> d.get(eventConfiguration.timestampProperty()))
                        .map(t -> parseInstant((String) t))

@@ -23,9 +23,9 @@
         <version>4.4</version>
     </parent>
 
-    <artifactId>axon-mongo</artifactId>
+    <artifactId>axon-mongo-reactive</artifactId>
 
-    <name>Axon Framework MongoDB Extension</name>
+    <name>Axon Framework Reactive MongoDB Extension</name>
     <description>
         This module contains components that integrate with MongoDB.
     </description>
@@ -47,10 +47,16 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+            <version>3.3.9.RELEASE</version>
+        </dependency>
+
         <!-- Mongo dependencies -->
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-sync</artifactId>
+            <artifactId>mongodb-driver-reactivestreams</artifactId>
             <version>${mongo.driver.version}</version>
         </dependency>
 

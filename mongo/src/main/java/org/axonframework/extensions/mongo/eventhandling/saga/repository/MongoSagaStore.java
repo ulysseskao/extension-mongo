@@ -17,7 +17,6 @@
 package org.axonframework.extensions.mongo.eventhandling.saga.repository;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.MongoCursor;
 import org.axonframework.common.AxonConfigurationException;
 import org.axonframework.extensions.mongo.MongoTemplate;
 import org.axonframework.modelling.saga.AssociationValue;
@@ -26,9 +25,12 @@ import org.axonframework.modelling.saga.repository.SagaStore;
 import org.axonframework.serialization.Serializer;
 import org.axonframework.serialization.xml.XStreamSerializer;
 import org.bson.Document;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static com.mongodb.client.model.Projections.include;
 import static org.axonframework.common.BuilderUtils.assertNonNull;
@@ -74,7 +76,9 @@ public class MongoSagaStore implements SagaStore<Object> {
 
     @Override
     public <S> Entry<S> loadSaga(Class<S> sagaType, String sagaIdentifier) {
-        Document dbSaga = mongoTemplate.sagaCollection().find(SagaEntry.queryByIdentifier(sagaIdentifier)).first();
+        Document dbSaga = Mono.from(
+                mongoTemplate.sagaCollection().find(SagaEntry.queryByIdentifier(sagaIdentifier)).first())
+                .block();
         if (dbSaga == null) {
             return null;
         }
@@ -97,15 +101,13 @@ public class MongoSagaStore implements SagaStore<Object> {
     public Set<String> findSagas(Class<?> sagaType, AssociationValue associationValue) {
         final BasicDBObject value = associationValueQuery(sagaType, associationValue);
 
-        MongoCursor<Document> dbCursor = mongoTemplate.sagaCollection()
+        Flux<Document> dbCursor = Flux.from(mongoTemplate.sagaCollection()
                                                       .find(value)
-                                                      .projection(include("sagaIdentifier"))
-                                                      .iterator();
-        Set<String> found = new TreeSet<>();
-        while (dbCursor.hasNext()) {
-            found.add((String) dbCursor.next().get("sagaIdentifier"));
-        }
-        return found;
+                                                      .projection(include("sagaIdentifier")));
+        dbCursor.map(document -> document.get("sagaIdentifier")).collect(Collectors.toSet());
+        Mono<Set<String>> found = dbCursor.map(document -> (document.get("sagaIdentifier")).toString())
+                .collect(Collectors.toSet());
+        return found.block();
     }
 
     private BasicDBObject associationValueQuery(Class<?> sagaType, AssociationValue associationValue) {

@@ -16,7 +16,7 @@
 
 package org.axonframework.extensions.mongo;
 
-import com.mongodb.client.MongoCollection;
+import com.mongodb.reactivestreams.client.MongoCollection;
 import org.bson.Document;
 
 /**

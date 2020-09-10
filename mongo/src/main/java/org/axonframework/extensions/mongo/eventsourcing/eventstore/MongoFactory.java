@@ -16,9 +16,9 @@
 
 package org.axonframework.extensions.mongo.eventsourcing.eventstore;
 
-import com.mongodb.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.MongoClientSettings;
-import com.mongodb.client.MongoClients;
+import com.mongodb.reactivestreams.client.MongoClients;
 
 /**
  * Convenience class for creating Mongo instances. It helps configuring a Mongo instance with a WriteConcern safe to use

@@ -17,8 +17,8 @@
 package org.axonframework.extensions.mongo.eventsourcing.eventstore;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.MongoClient;
 import com.mongodb.WriteConcern;
+import com.mongodb.reactivestreams.client.MongoClient;
 import de.flapdoodle.embed.mongo.MongodExecutable;
 import de.flapdoodle.embed.mongo.MongodProcess;
 import org.axonframework.common.jdbc.PersistenceExceptionResolver;

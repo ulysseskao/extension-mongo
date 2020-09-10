@@ -16,7 +16,7 @@
 
 package org.axonframework.extensions.mongo.eventsourcing.eventstore;
 
-import com.mongodb.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoClient;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;

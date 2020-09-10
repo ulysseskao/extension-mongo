@@ -16,9 +16,8 @@
 
 package org.axonframework.extensions.mongo.eventsourcing.tokenstore;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.reactivestreams.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoCollection;
 import de.flapdoodle.embed.mongo.MongodExecutable;
 import de.flapdoodle.embed.mongo.MongodProcess;
 import org.axonframework.eventhandling.GlobalSequenceTrackingToken;
@@ -40,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.time.temporal.TemporalAmount;
@@ -380,20 +380,18 @@ class MongoTokenStoreTest {
         // Claim the token by fetching it to be able to delete it
         tokenStore.fetchToken(testProcessorName, testSegment);
         // Verify whether there is a document stored under the given processor name and segment
-        MongoCursor<Document> resultIterator =
+        Flux<Document> resultIterator = Flux.from(
                 mongoTemplate.trackingTokensCollection()
-                             .find(and(eq("processorName", testProcessorName), eq("segment", testSegment)))
-                             .iterator();
-        assertTrue(resultIterator.hasNext());
+                             .find(and(eq("processorName", testProcessorName), eq("segment", testSegment))));
+        assertNotNull(resultIterator.toStream().findFirst().orElse(null));
 
 
         tokenStore.deleteToken(testProcessorName, testSegment);
 
-        resultIterator =
+        resultIterator = Flux.from(
                 mongoTemplate.trackingTokensCollection()
-                             .find(and(eq("processorName", testProcessorName), eq("segment", testSegment)))
-                             .iterator();
-        assertFalse(resultIterator.hasNext());
+                             .find(and(eq("processorName", testProcessorName), eq("segment", testSegment))));
+        assertNull(resultIterator.toStream().findFirst().orElse(null));
     }
 
     @Test

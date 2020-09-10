@@ -16,7 +16,7 @@
 
 package org.axonframework.extensions.mongo.eventsourcing.eventstore;
 
-import com.mongodb.client.MongoCollection;
+import com.mongodb.reactivestreams.client.MongoCollection;
 import org.axonframework.eventhandling.DomainEventData;
 import org.axonframework.eventhandling.DomainEventMessage;
 import org.axonframework.eventhandling.EventMessage;

@@ -16,9 +16,8 @@
 
 package org.axonframework.extensions.mongo.eventhandling.saga.repository;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClients;
+import com.mongodb.reactivestreams.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoClients;
 import de.flapdoodle.embed.mongo.MongodExecutable;
 import de.flapdoodle.embed.mongo.MongodProcess;
 import org.axonframework.extensions.mongo.DefaultMongoTemplate;
@@ -41,6 +40,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.util.Set;
@@ -134,10 +135,10 @@ class MongoSagaStoreTest {
         );
 
         Bson sagaQuery = SagaEntry.queryByIdentifier("test1");
-        FindIterable<Document> sagaCursor = mongoTemplate.sagaCollection().find(sagaQuery);
+        Flux<Document> sagaCursor = Flux.from(mongoTemplate.sagaCollection().find(sagaQuery));
         assertEquals(
                 1,
-                StreamSupport.stream(sagaCursor.spliterator(), false).count(),
+                sagaCursor.toStream().count(),
                 "Amount of found sagas is not as expected"
         );
     }
@@ -168,10 +169,10 @@ class MongoSagaStoreTest {
         assertTrue(actual.isEmpty(), "Didn't expect any sagas");
 
         Bson sagaQuery = SagaEntry.queryByIdentifier("test1");
-        FindIterable<Document> sagaCursor = mongoTemplate.sagaCollection().find(sagaQuery);
+        Flux<Document> sagaCursor = Flux.from(mongoTemplate.sagaCollection().find(sagaQuery));
         assertEquals(
                 0,
-                StreamSupport.stream(sagaCursor.spliterator(), false).count(),
+                sagaCursor.toStream().count(),
                 "No saga is expected after .end and .commit"
         );
     }
@@ -282,9 +283,9 @@ class MongoSagaStoreTest {
                              loaded.saga(),
                              new AssociationValuesImpl(loaded.associationValues()));
 
-        SagaEntry<MyTestSaga> entry = new SagaEntry<>(mongoTemplate.sagaCollection()
+        SagaEntry<MyTestSaga> entry = new SagaEntry<>(Mono.from(mongoTemplate.sagaCollection()
                                                                    .find(SagaEntry.queryByIdentifier(identifier))
-                                                                   .first());
+                                                                   .first()).block());
         MyTestSaga actualSaga = entry.getSaga(serializer);
         assertNotSame(loaded, actualSaga);
         assertEquals(1, actualSaga.counter);
